@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import 'home_Page.dart';
 
 class LoginPage extends StatelessWidget {
+  LoginPage({Key? key}) : super(key: key);
   final TextEditingController _controller = TextEditingController();
 
   @override
@@ -46,16 +47,7 @@ class LoginPage extends StatelessWidget {
               child: Container(
                 alignment: Alignment.center,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Provider.of<AuthProvider>(
-                      context,
-                      listen: false,
-                    ).login(_controller.text);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
-                  },
+                  onPressed: () => handleLogin(context),
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                     child: Text("Se connecter"),
@@ -66,6 +58,24 @@ class LoginPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  handleLogin(BuildContext context) async {
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(child: CircularProgressIndicator()),
+      );
+    }
+    await Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).login(_controller.text);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomePage()),
     );
   }
 }

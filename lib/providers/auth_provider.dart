@@ -6,7 +6,8 @@ class AuthProvider with ChangeNotifier {
 
   String? get username => _username;
 
-  void login(String username) {
+  Future<void> login(String username) async {
+    await Future.delayed(Duration(seconds: 2));
     isAuth = true;
     _username = username;
     notifyListeners();
@@ -14,9 +15,9 @@ class AuthProvider with ChangeNotifier {
 
   // Logout method
   Future<void> logout() async {
-     await Future.delayed(Duration(seconds: 2));
+    await Future.delayed(Duration(seconds: 2));
     // Clear any stored tokens or user data
-    this.isAuth = false;
+    isAuth = false;
     _username = null;
     // Any other cleanup
     notifyListeners(); // Notify listeners that the state has changed

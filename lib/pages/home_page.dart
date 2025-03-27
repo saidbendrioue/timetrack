@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
 class HomePage extends StatelessWidget {
+  
+  const HomePage({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -21,10 +24,7 @@ class HomePage extends StatelessWidget {
                   onPressed: () => Navigator.of(ctx).pop(false),
                 ),
                 TextButton(
-                  child: Text(
-                    'Déconnecter',
-                    style: TextStyle(color: Colors.red),
-                  ),
+                  child: Text('Déconnecter'),
                   onPressed: () => Navigator.of(ctx).pop(true),
                 ),
               ],
@@ -71,13 +71,7 @@ class HomePage extends StatelessWidget {
                 (BuildContext context) => [
                   const PopupMenuItem<String>(
                     value: 'logout',
-                    child: ListTile(
-                      leading: Icon(Icons.logout, color: Colors.red),
-                      title: Text(
-                        'Se déconnecter',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
+                    child: ListTile(title: Text('Se déconnecter')),
                   ),
                 ],
           ),
@@ -109,7 +103,7 @@ class HomePage extends StatelessWidget {
               width: 200, // Assurez-vous que le second bouton a la même largeur
               child: ElevatedButton(
                 onPressed: () {
-                  // Ajouter la logique pour "Historique de présence"
+                  Navigator.pushNamed(context, '/historique');
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
