@@ -8,7 +8,7 @@ class HomePage extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context);
     String? username = authProvider.username;
 
-    Future<void> _handleLogout() async {
+    Future<void> handleLogout() async {
       final confirmLogout = await showDialog<bool>(
         context: context,
         builder:
@@ -31,7 +31,7 @@ class HomePage extends StatelessWidget {
             ),
       );
 
-      if (confirmLogout == true) {
+      if (confirmLogout == true && context.mounted) {
         // Show loading indicator
         showDialog(
           context: context,
@@ -44,12 +44,13 @@ class HomePage extends StatelessWidget {
           await Provider.of<AuthProvider>(context, listen: false).logout();
         } finally {
           // Dismiss loading indicator
-          Navigator.of(context).pop();
-
-          // Navigate to login
-          Navigator.of(
-            context,
-          ).pushNamedAndRemoveUntil('/login', (route) => false);
+          if (context.mounted) {
+            Navigator.of(context).pop();
+            // Navigate to login
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/login', (route) => false);
+          }
         }
       }
     }
@@ -63,7 +64,7 @@ class HomePage extends StatelessWidget {
             icon: Icon(Icons.more_vert),
             onSelected: (value) {
               if (value == 'logout') {
-                _handleLogout();
+                handleLogout();
               }
             },
             itemBuilder:
