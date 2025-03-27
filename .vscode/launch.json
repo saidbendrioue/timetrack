@@ -1,0 +1,11 @@
+{
+    "configurations": [
+      {
+        "name": "Flutter",
+        "request": "launch",
+        "type": "dart",
+        "args": ["--web-port=6000"]
+      }
+    ]
+  }
+  
