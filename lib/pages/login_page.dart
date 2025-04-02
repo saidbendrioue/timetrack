@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:timetrack/models/employe.model.dart';
+import 'package:timetrack/providers/auth_provider.dart';
+import 'package:timetrack/services/login_service.dart';
 import 'home_Page.dart';
 
 class LoginPage extends StatelessWidget {
-  LoginPage({Key? key}) : super(key: key);
-  final TextEditingController _controller = TextEditingController();
+  LoginPage({super.key});
+  final TextEditingController _emailController = TextEditingController(
+    text: "jean.dupont@example.com",
+  );
+  final TextEditingController _passwordController = TextEditingController(
+    text: "password123",
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -25,15 +32,16 @@ class LoginPage extends StatelessWidget {
               ),
             ),
 
-            // Second part - Text Field
+            // Second part - Email Field
             Expanded(
               flex: 1,
               child: Container(
                 alignment: Alignment.center,
                 child: TextField(
-                  controller: _controller,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: "Nom d'utilisateur",
+                    labelText: "Email",
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 16),
                   ),
@@ -41,7 +49,24 @@ class LoginPage extends StatelessWidget {
               ),
             ),
 
-            // Third part - Login Button
+            // Third part - Password Field
+            Expanded(
+              flex: 1,
+              child: Container(
+                alignment: Alignment.center,
+                child: TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: "Mot de passe",
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
+            ),
+
+            // Fourth part - Login Button
             Expanded(
               flex: 1,
               child: Container(
@@ -61,21 +86,31 @@ class LoginPage extends StatelessWidget {
     );
   }
 
-  handleLogin(BuildContext context) async {
-    if (context.mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(child: CircularProgressIndicator()),
+  Future<void> handleLogin(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    try {
+      final loginService = LoginService();
+      final response = await loginService.login(
+        _emailController.text,
+        _passwordController.text,
       );
+
+      if (response["status"] == "success") {
+        final employe = Employe.fromJson(response["employe"]);
+        await authProvider.login(employe);
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Invalid email or password")),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Login failed: ${e.toString()}")),
+        );
+      }
     }
-    await Provider.of<AuthProvider>(
-      context,
-      listen: false,
-    ).login(_controller.text);
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => HomePage()),
-    );
   }
 }

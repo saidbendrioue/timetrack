@@ -54,10 +54,15 @@ class _HistoriquePageState extends State<HistoriquePage> {
     },
   ];
 
+  initPointages() async {
+    await initializeDateFormatting('fr_FR');
+    
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: initializeDateFormatting('fr_FR'),
+      future: initPointages(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

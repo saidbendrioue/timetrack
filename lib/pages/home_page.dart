@@ -1,122 +1,198 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timetrack/models/employe.model.dart';
+import 'package:timetrack/models/pointage.model.dart';
+import 'package:timetrack/services/pointage.api.dart';
+import 'dart:convert';
 import '../providers/auth_provider.dart';
+import 'package:one_clock/one_clock.dart';
 
 class HomePage extends StatelessWidget {
-  
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    String? username = authProvider.username;
+  Future<Employe?> _loadEmploye() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final employeString = prefs.getString('employe');
+      return employeString != null
+          ? Employe.fromJson(jsonDecode(employeString))
+          : null;
+    } catch (e) {
+      print('Error loading employe: $e');
+      return null;
+    }
+  }
 
-    Future<void> handleLogout() async {
-      final confirmLogout = await showDialog<bool>(
+  Future<void> handleLogout(BuildContext context) async {
+    final confirmLogout = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Confirmation'),
+            content: const Text('Voulez-vous vraiment vous déconnecter?'),
+            actions: [
+              TextButton(
+                child: const Text('Annuler'),
+                onPressed: () => Navigator.of(ctx).pop(false),
+              ),
+              TextButton(
+                child: const Text('Déconnecter'),
+                onPressed: () => Navigator.of(ctx).pop(true),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmLogout == true && context.mounted) {
+      showDialog(
         context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: Text('Confirmation'),
-              content: Text('Voulez-vous vraiment vous déconnecter?'),
-              actions: [
-                TextButton(
-                  child: Text('Annuler'),
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                ),
-                TextButton(
-                  child: Text('Déconnecter'),
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                ),
-              ],
-            ),
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      if (confirmLogout == true && context.mounted) {
-        // Show loading indicator
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => Center(child: CircularProgressIndicator()),
-        );
-
-        try {
-          // This will now wait for the 2-second delay inside logout()
-          await Provider.of<AuthProvider>(context, listen: false).logout();
-        } finally {
-          // Dismiss loading indicator
-          if (context.mounted) {
-            Navigator.of(context).pop();
-            // Navigate to login
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/login', (route) => false);
-          }
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('employe');
+        await prefs.setBool('isLoggedIn', false);
+        await Provider.of<AuthProvider>(context, listen: false).logout();
+      } finally {
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/login', (route) => false);
         }
       }
     }
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Bonjour, $username!"),
-        automaticallyImplyLeading: false,
-        actions: [
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'logout') {
-                handleLogout();
-              }
-            },
-            itemBuilder:
-                (BuildContext context) => [
-                  const PopupMenuItem<String>(
-                    value: 'logout',
-                    child: ListTile(title: Text('Se déconnecter')),
-                  ),
-                ],
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Employe?>(
+      future: _loadEmploye(),
+      builder: (context, snapshot) {
+        final employeName = snapshot.hasData ? snapshot.data?.prenom : null;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              employeName != null ? "Bonjour, $employeName!" : "Bonjour!",
+            ),
+            automaticallyImplyLeading: false,
+            actions: [
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'logout') {
+                    handleLogout(context);
+                  }
+                },
+                itemBuilder:
+                    (BuildContext context) => [
+                      const PopupMenuItem<String>(
+                        value: 'logout',
+                        child: ListTile(title: Text('Se déconnecter')),
+                      ),
+                    ],
+              ),
+            ],
           ),
-        ],
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(
+                  width: 200,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      DigitalClock(
+                        showSeconds: true,
+                        isLive: true,
+                        digitalClockColor: Colors.black,
+                        datetime: DateTime.now(),
+                        // textScaleFactor: 2.5,
+                      ),
+                      const SizedBox(width: 20),
+                      Text(
+                        DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                        style: TextStyle(fontSize: 17),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 150),
+                SizedBox(
+                  width: 200,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _pointer(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.lightGreen,
+                    ),
+                    child: const Text(
+                      "Pointer",
+                      style: TextStyle(fontSize: 14, color: Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: 200,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/historique');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                    ),
+                    child: const Text(
+                      "Historique de présence",
+                      style: TextStyle(fontSize: 14, color: Colors.black54),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _pointer(BuildContext context) async {
+    final pointageService = PointageService();
+    // Exemple: Créer un nouveau pointage
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final employeConnecte = authProvider.employe;
+
+    final nouveauPointage = Pointage(
+      date: DateTime.now(),
+      heureArrivee: TimeOfDay(
+        hour: DateTime.now().hour,
+        minute: DateTime.now().minute,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            SizedBox(
-              width: 200, // Largeur fixe pour les boutons
-              child: ElevatedButton(
-                onPressed: () {
-                  // Ajouter la logique pour "Pointer"
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      Colors
-                          .lightGreen, // Couleur verte pour le bouton "Pointer"
-                ),
-                child: Text(
-                  "Pointer",
-                  style: TextStyle(fontSize: 14, color: Colors.white),
-                ),
-              ),
-            ),
-            SizedBox(height: 20), // Espacement entre les deux boutons
-            SizedBox(
-              width: 200, // Assurez-vous que le second bouton a la même largeur
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/historique');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      Colors
-                          .grey[300], // Couleur gris clair pour le bouton "Historique"
-                ),
-                child: Text(
-                  "Historique de présence",
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
-                ),
-              ),
-            ),
-          ],
+      heureDepart: TimeOfDay(hour: 18, minute: 59),
+      type: 'PRESENT',
+      employeId: employeConnecte!.id,
+    );
+
+    try {
+      final createdPointage = await pointageService.createPointage(
+        nouveauPointage,
+      );
+      print('Pointage créé avec ID: ${createdPointage.id}');
+    } catch (e) {
+      print('Erreur lors de la création: $e');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "Pointage saisi à ${DateFormat('HH:mm:ss dd/MM/yyyy').format(DateTime.now())}",
         ),
       ),
     );
