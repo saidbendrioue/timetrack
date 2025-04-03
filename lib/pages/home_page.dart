@@ -20,7 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Employe? _employe;
-  Pointage? _pointage;
+  Pointage? _pointageDuJour;
   bool _isLoading = true;
 
   @override
@@ -40,8 +40,9 @@ class _HomePageState extends State<HomePage> {
 
         if (_employe != null) {
           final pointageService = PointageService();
-          _pointage = await pointageService.getTodayPointage(_employe!.id);
-          print(_pointage);
+          _pointageDuJour = await pointageService.getTodayPointage(
+            _employe!.id,
+          );
         }
 
         setState(() {
@@ -103,28 +104,61 @@ class _HomePageState extends State<HomePage> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child:
-                            _pointage != null
-                                ? RichText(
-                                  textAlign: TextAlign.center,
-                                  text: TextSpan(
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
-                                    children: [
-                                      const TextSpan(
-                                        text: "Pointage d'arrivée enregistré\n",
-                                      ),
-                                      TextSpan(
-                                        text:
-                                            "${DateFormat('dd/MM/yyyy').format(_pointage!.date)} ${_pointage!.heureArriveeFormatted}",
+                            _pointageDuJour != null
+                                ? Column(
+                                  children: [
+                                    RichText(
+                                      textAlign: TextAlign.center,
+                                      text: TextSpan(
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green,
+                                          fontSize: 16,
+                                          color: Colors.black87,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text:
+                                                "Pointage d'arrivée enregistré\n",
+                                          ),
+                                          TextSpan(
+                                            text:
+                                                _pointageDuJour!.heureArriveeFormatted,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (_pointageDuJour!.heureDepart != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 10),
+                                        child: RichText(
+                                          textAlign: TextAlign.center,
+                                          text: TextSpan(
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.black87,
+                                            ),
+                                            children: [
+                                              const TextSpan(
+                                                text:
+                                                    "Pointage de départ enregistré\n",
+                                              ),
+                                              TextSpan(
+                                                text:
+                                                    _pointageDuJour!
+                                                        .heureDepartFormatted,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                  ],
                                 )
                                 : const Text(
                                   "Vous n'avez pas encore pointé votre arrivée",
@@ -176,10 +210,15 @@ class _HomePageState extends State<HomePage> {
                           width: 250,
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: () => _pointer(context),
+                            onPressed:
+                                _pointageDuJour?.heureDepart != null
+                                    ? null
+                                    : () => _pointer(context),
                             style: ElevatedButton.styleFrom(
                               backgroundColor:
-                                  _pointage == null
+                                  _pointageDuJour?.heureDepart != null
+                                      ? Colors.grey
+                                      : _pointageDuJour == null
                                       ? Colors.green
                                       : Colors.blue,
                               shape: RoundedRectangleBorder(
@@ -188,7 +227,7 @@ class _HomePageState extends State<HomePage> {
                               elevation: 2,
                             ),
                             child: Text(
-                              _pointage == null
+                              _pointageDuJour == null
                                   ? "Pointer l'arrivée".toUpperCase()
                                   : "Pointer le départ".toUpperCase(),
                               style: const TextStyle(
@@ -239,81 +278,76 @@ class _HomePageState extends State<HomePage> {
     final employeConnecte = authProvider.employe;
 
     if (employeConnecte == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Aucun employé connecté",
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      _afficherMessage(context, "Aucun employé connecté", Colors.red);
       return;
     }
 
-    final nouveauPointage = Pointage.now(
-      employeId: employeConnecte.id,
-      type: _pointage == null ? 'PRESENT' : 'ABSENT',
-    );
-
     try {
-      final createdPointage = await pointageService.createPointage(
-        nouveauPointage,
-      );
+      if (_pointageDuJour == null) {
+        final nouveauPointage = Pointage.now(
+          employeId: employeConnecte.id,
+          type: 'PRESENT',
+        );
 
-      setState(() {
-        _pointage = createdPointage;
-      });
+        final createdPointage = await pointageService.createPointage(
+          nouveauPointage,
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Pointage enregistré à ${DateFormat('HH:mm').format(DateTime.now())}",
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        setState(() {
+          _pointageDuJour = createdPointage;
+        });
 
-      print('Pointage créé avec ID: ${createdPointage.id}');
+        _afficherMessage(
+          context,
+          "Pointage enregistré à ${DateFormat('HH:mm').format(DateTime.now())}",
+          Colors.green,
+        );
+
+        print('Pointage créé avec ID: ${createdPointage.id}');
+      } else if (_pointageDuJour!.heureDepart == null) {
+        _pointageDuJour!.heureDepart = TimeOfDay.fromDateTime(DateTime.now());
+
+        await pointageService.updatePointage(_pointageDuJour!);
+
+        setState(() {
+          // Mettre à jour l'état local
+          _pointageDuJour = _pointageDuJour;
+        });
+
+        _afficherMessage(
+          context,
+          "Départ enregistré à ${DateFormat('HH:mm').format(DateTime.now())}",
+          Colors.blue,
+        );
+
+        print('Départ enregistré pour ID: ${_pointageDuJour!.id}');
+      }
     } on BusinessException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.message ?? "Erreur lors de l'enregistrement",
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 4),
-        ),
+      _afficherMessage(
+        context,
+        e.message ?? "Erreur lors de l'enregistrement",
+        Colors.orange,
       );
     } on NotFoundException {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Employé non trouvé",
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      _afficherMessage(context, "Employé non trouvé", Colors.red);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Une erreur technique est survenue",
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
+      _afficherMessage(
+        context,
+        "Une erreur technique est survenue",
+        Colors.red,
       );
-
       print('Erreur technique: $e');
     }
+  }
+
+  void _afficherMessage(BuildContext context, String message, Color couleur) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: couleur,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> handleLogout(BuildContext context) async {

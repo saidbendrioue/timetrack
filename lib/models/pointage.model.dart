@@ -6,7 +6,7 @@ class Pointage {
   final int? id;
   final DateTime date;
   final TimeOfDay heureArrivee;
-  final TimeOfDay? heureDepart;
+  TimeOfDay? heureDepart;
   final String type;
   final int employeId;
 
