@@ -129,8 +129,8 @@ class Employe {
         0,
         0,
         0,
-        p.heureDepart.hour,
-        p.heureDepart.minute,
+        p.heureDepart!.hour,
+        p.heureDepart!.minute,
       );
       return total + depart.difference(arrivee);
     });

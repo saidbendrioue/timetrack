@@ -1,6 +1,8 @@
 // pointage_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:timetrack/exceptions/business.exception.dart';
+import 'package:timetrack/exceptions/not_found.exception.dart';
 import 'package:timetrack/models/pointage.model.dart';
 
 class PointageService {
@@ -35,14 +37,43 @@ class PointageService {
   Future<Pointage> createPointage(Pointage pointage) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/pointages'),
+      body: jsonEncode(pointage.toJson()),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode(pointage.toJson()),
     );
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return Pointage.fromJson(json.decode(response.body));
-    } else {
-      throw Exception('Failed to create pointage');
+    switch (response.statusCode) {
+      case 201:
+        return Pointage.fromJson(jsonDecode(response.body));
+      case 400:
+        throw BusinessException(jsonDecode(response.body)['message']);
+      case 404:
+        throw NotFoundException(jsonDecode(response.body)['message']);
+      default:
+        throw Exception('Erreur serveur: ${response.statusCode}');
+    }
+  }
+
+  Future<Pointage> getTodayPointage(int employeId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/pointages/employe/$employeId/today'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        return Pointage.fromJson(json.decode(response.body));
+      }
+      switch (response.statusCode) {
+        case 201:
+          return Pointage.fromJson(jsonDecode(response.body));
+        case 400:
+          throw BusinessException(jsonDecode(response.body)['message']);
+        case 404:
+          throw NotFoundException(jsonDecode(response.body)['message']);
+        default:
+          throw Exception('Erreur serveur: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Erreur de connexion: ${e.toString()}');
     }
   }
 

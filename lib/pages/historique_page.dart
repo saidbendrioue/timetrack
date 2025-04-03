@@ -1,12 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timetrack/models/employe.model.dart';
+import 'package:timetrack/models/pointage.model.dart';
+import 'package:timetrack/services/pointage.api.dart';
 import 'package:timetrack/utils/time_utils.dart';
 
 class HistoriquePage extends StatefulWidget {
-  const HistoriquePage({Key? key}) : super(key: key);
+  const HistoriquePage({super.key});
+
   @override
-  _HistoriquePageState createState() => _HistoriquePageState();
+  State<HistoriquePage> createState() => _HistoriquePageState();
 }
 
 class _HistoriquePageState extends State<HistoriquePage> {
@@ -14,93 +21,110 @@ class _HistoriquePageState extends State<HistoriquePage> {
   final couleurPresent = const Color.fromARGB(255, 215, 255, 236);
   final couleurAbscent = const Color.fromARGB(255, 253, 223, 223);
 
-  // Données bidon pour le mois en cours
-  final List<Map<String, dynamic>> _pointages = [
-    {
-      'date': DateTime.now().subtract(Duration(days: 5)),
-      'arrivee': '08:30',
-      'depart': '17:15',
-      'status': 'Présent',
-    },
-    {
-      'date': DateTime.now().subtract(Duration(days: 4)),
-      'arrivee': '09:00',
-      'depart': '17:30',
-      'status': 'Présent',
-    },
-    {
-      'date': DateTime.now().subtract(Duration(days: 3)),
-      'arrivee': '08:45',
-      'depart': '12:30',
-      'status': 'Demi-journée',
-    },
-    {
-      'date': DateTime.now().subtract(Duration(days: 2)),
-      'arrivee': '-',
-      'depart': '-',
-      'status': 'Absent',
-    },
-    {
-      'date': DateTime.now().subtract(Duration(days: 1)),
-      'arrivee': '08:50',
-      'depart': '17:20',
-      'status': 'Présent',
-    },
-    {
-      'date': DateTime.now(),
-      'arrivee': '08:35',
-      'depart': '-',
-      'status': 'En cours...',
-    },
-  ];
+  List<Map<String, dynamic>> _pointages = [];
+  bool _isLoading = true;
+  String? _error;
 
-  initPointages() async {
+  Future<void> initPointages() async {
     await initializeDateFormatting('fr_FR');
-    
+    try {
+      final pointageService = PointageService();
+      final prefs = await SharedPreferences.getInstance();
+      final employeString = prefs.getString('employe');
+      if (employeString != null) {
+        final currentEmploye = Employe.fromJson(jsonDecode(employeString));
+        final pointages = await pointageService.getPointagesByEmploye(
+          currentEmploye.id,
+        );
+
+        setState(() {
+          _pointages =
+              pointages.map((pointage) {
+                return {
+                  'date': pointage.date,
+                  'arrivee': _formatTimeOfDay(pointage.heureArrivee),
+                  'depart':
+                      pointage.heureDepart != null
+                          ? _formatTimeOfDay(pointage.heureDepart!)
+                          : '-',
+                  'status': _determineStatus(pointage),
+                };
+              }).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Aucun employé connecté';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Erreur lors du chargement des pointages';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final now = DateTime.now();
+    final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+    return DateFormat.Hm().format(dt);
+  }
+
+  String _determineStatus(Pointage pointage) {
+    if (pointage.heureDepart == null) {
+      return 'En cours...';
+    } else if (pointage.heureDepart!.hour - pointage.heureArrivee.hour < 4) {
+      return 'Demi-journée';
+    } else if (pointage.type == 'ABSENT') {
+      return 'Absent';
+    } else {
+      return 'Présent';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    initPointages();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: initPointages(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (snapshot.hasError) {
-          return Center(child: Text('Erreur: ${snapshot.error}'));
-        }
+    if (_error != null) {
+      return Center(child: Text(_error!));
+    }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              'Historique de présence en ${DateFormat('MMMM', 'fr_FR').format(DateTime.now()).toUpperCase()}',
-              style: TextStyle(fontSize: 14),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Historique de présence en ${DateFormat('MMMM', 'fr_FR').format(DateTime.now()).toUpperCase()}',
+          style: const TextStyle(fontSize: 14),
+        ),
+      ),
+      body: Column(
+        children: [
+          Text(
+            'Total des heures travaillées : ${TimeUtils.calculateMonthlyTotal(_pointages)}',
+            style: const TextStyle(fontSize: 14),
+          ),
+          _buildCalendarGrid(),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _pointages.length,
+              itemBuilder: (context, index) {
+                final pointage = _pointages[index];
+                return _buildPointageCard(pointage);
+              },
             ),
           ),
-          body: Column(
-            children: [
-              Text(
-                'Total des heures travaillées : ${TimeUtils.calculateMonthlyTotal(_pointages)}',
-                style: TextStyle(fontSize: 14),
-              ),
-              // Calendrier du mois
-              _buildCalendarGrid(),
-              // Liste des pointages
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _pointages.length,
-                  itemBuilder: (context, index) {
-                    final pointage = _pointages[index];
-                    return _buildPointageCard(pointage);
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -113,51 +137,89 @@ class _HistoriquePageState extends State<HistoriquePage> {
 
     return GridView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 7,
       ),
       itemCount: daysInMonth + startingWeekday - 1,
       itemBuilder: (context, index) {
         if (index < startingWeekday - 1) {
-          return Container(); // Jours vides avant le 1er du mois
+          return Container();
         }
 
         final day = index - startingWeekday + 2;
         final currentDate = DateTime(now.year, now.month, day);
+
         final pointage = _pointages.firstWhere(
-          (p) => DateUtils.isSameDay(p['date'], currentDate),
-          orElse: () => {},
+          (p) => DateUtils.isSameDay(p['date'] as DateTime, currentDate),
+          orElse:
+              () => <String, Object>{
+                'date': currentDate,
+                'arrivee': '-',
+                'depart': '-',
+                'status': '',
+              },
         );
-
-        Color bgColor = Colors.green;
+        Color bgColor = Colors.transparent;
         String status = '';
+        final displayStatus = pointage['status'] as String;
 
-        if (pointage['status'] == 'Présent') {
-          bgColor = couleurPresent;
-          status = '✓';
-        } else if (pointage['status'] == 'Absent') {
-          bgColor = couleurAbscent;
-          status = '✗';
-        } else if (pointage['status'] == 'Demi-journée') {
-          bgColor = couleurDemiJournee;
-          status = '½';
-        } else {
-          bgColor = const Color.fromARGB(0, 255, 255, 255);
-          status = '-';
+        switch (displayStatus) {
+          case 'Présent':
+            bgColor = couleurPresent;
+            status = '✓';
+            break;
+          case 'Absent':
+            bgColor = couleurAbscent;
+            status = '✗';
+            break;
+          case 'Demi-journée':
+            bgColor = couleurDemiJournee;
+            status = '½';
+            break;
+          case 'En cours...':
+            bgColor = Colors.blue.withOpacity(0.2);
+            status = '...';
+            break;
+          default:
+            bgColor = Colors.transparent;
+            status = '-';
         }
 
         return InkWell(
-          onTap: () => _showPointageDetails(context, pointage),
+          onTap:
+              displayStatus.isNotEmpty
+                  ? () => _showPointageDetails(context, pointage)
+                  : null,
           child: Container(
-            margin: EdgeInsets.all(4),
-            decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: bgColor,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: day == now.day ? Colors.blue : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('$day', style: TextStyle(fontSize: 12)),
-                  Text(status),
+                  Text(
+                    '$day',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          day == now.day ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: _getStatusTextColor(displayStatus),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -165,6 +227,21 @@ class _HistoriquePageState extends State<HistoriquePage> {
         );
       },
     );
+  }
+
+  Color _getStatusTextColor(String status) {
+    switch (status) {
+      case 'Présent':
+        return Colors.green;
+      case 'Absent':
+        return Colors.red;
+      case 'Demi-journée':
+        return Colors.orange;
+      case 'En cours...':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
   }
 
   Color _getStatusColor(String status) {
